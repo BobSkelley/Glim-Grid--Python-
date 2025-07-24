@@ -4,10 +4,10 @@ from glim import Glim
 
 class GameState:
     def __init__(self):
-        self.life_essence = 999990
+        self.life_essence = 0
         self.glims = []
         self.structures = []
-        self.glim_cap = 100
+        self.glim_cap = 10
         
         self.glim_targeting = 'right_only'
         self.build_mode_item = None
@@ -47,7 +47,6 @@ class GameState:
         has_sp = self.skill_points >= skill['cost_sp']
         has_essence = self.life_essence >= skill['cost_essence']
         
-        # Count standard glims for the requirement
         standard_glim_count = sum(1 for glim in self.glims if glim.glim_type == 'standard')
         has_glims = standard_glim_count >= skill['req_glims']
         
@@ -60,7 +59,6 @@ class GameState:
             self.skill_points -= skill['cost_sp']
             skill['unlocked'] = True
             
-            # Special effect for this skill: grant 5 free stompers
             if skill_name == 'glimdraulic_drills':
                 for _ in range(5):
                     if len(self.glims) < self.glim_cap:
@@ -87,12 +85,15 @@ class GameState:
             self.build_mode_item = None
             pygame.mouse.set_visible(True)
 
-    def convert_glim_to_stomper(self):
-        if self.life_essence >= STOMPER_CONVERSION_COST:
-            # Find the first available standard glim to convert
-            for glim in self.glims:
-                if glim.glim_type == 'standard':
-                    self.life_essence -= STOMPER_CONVERSION_COST
-                    glim.convert_to_stomper()
-                    return True # Successfully converted one
-        return False
+    def find_trainable_glim(self):
+        # Find the first available standard glim that isn't already being trained
+        for glim in self.glims:
+            if glim.glim_type == 'standard':
+                is_being_trained = False
+                for struct in self.structures:
+                    if hasattr(struct, 'glim_to_train') and struct.glim_to_train == glim:
+                        is_being_trained = True
+                        break
+                if not is_being_trained:
+                    return glim
+        return None

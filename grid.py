@@ -34,7 +34,6 @@ class Grid:
 
     def find_next_target(self, glim, targeting_mode):
         if glim.glim_type == 'stomper':
-            # Stompers always find the closest mountain
             closest_mountain = None
             min_dist = float('inf')
             for tile in self.tiles:
@@ -45,18 +44,15 @@ class Grid:
                         closest_mountain = tile
             return closest_mountain
         
-        # Logic for 'standard' glims
         if targeting_mode == 'right_only':
             for i in range(self.center_index, len(self.tiles)):
                 if self.tiles[i].state == 'barren':
                     return self.tiles[i]
         elif targeting_mode == 'closest':
             for i in range(1, self.center_index + 1):
-                # Check right
                 if self.center_index + i < len(self.tiles):
                     right_tile = self.tiles[self.center_index + i]
                     if right_tile.state == 'barren': return right_tile
-                # Check left
                 if self.center_index - i >= 0:
                     left_tile = self.tiles[self.center_index - i]
                     if left_tile.state == 'barren': return left_tile
@@ -86,8 +82,8 @@ class Grid:
 
     def handle_click(self, world_x, world_y, click_strength):
         tile = self.get_tile_at_world_pos(world_x, world_y)
-        if tile and (tile.state == 'barren' or tile.state == 'mountain'):
-            return tile.take_damage(click_strength)
+        if tile:
+            return tile.take_damage(click_strength, by_player=True)
         return 0
 
     def update(self, delta_time):
@@ -97,9 +93,8 @@ class Grid:
             essence, effect = tile.update(delta_time)
             if essence > 0:
                 total_essence_gained += essence
-                effects_to_create.append({'x': tile.rect.centerx, 'y': tile.rect.y, 'text': f"+{essence}"})
             if effect == "mountain_cleared":
-                 effects_to_create.append({'x': tile.rect.centerx, 'y': tile.rect.y, 'text': "Mountain Cleared!", 'type': 'notification'})
+                 effects_to_create.append({'type': 'notification', 'text': "Mountain Cleared!"})
         return total_essence_gained, effects_to_create
 
     def draw(self, screen, camera_offset_x):

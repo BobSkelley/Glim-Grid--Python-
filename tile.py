@@ -14,7 +14,8 @@ class Tile:
         self.is_core = is_core
         self.rect = pygame.Rect(self.x_pos, self.y_pos, TILE_SIZE, TILE_SIZE)
         self.structure = None
-        
+        self.is_being_mined = False
+
         self.living_surface = self._create_living_surface()
         self.landmark_surface = self._create_landmark_surface() if is_center else None
         self.mountain_surface = self._create_mountain_surface() if state == 'mountain' else None
@@ -60,17 +61,26 @@ class Tile:
     def is_buildable(self):
         return self.state == 'living' and not self.is_center and self.structure is None
 
-    def take_damage(self, amount):
+    def take_damage(self, amount, by_player=False):
+        if by_player and self.state == 'mountain':
+            return 0
+
         if self.state == 'barren' or self.state == 'mountain':
             was_mountain = self.state == 'mountain'
             self.current_toughness -= amount
             if self.current_toughness <= 0:
                 self.current_toughness = 0
-                self.state = 'living'
+                
                 if self.is_core:
+                    self.state = 'living'
                     return "core_cultivated"
+                
                 if was_mountain:
+                    self.state = 'barren' # A destroyed mountain becomes a barren tile
                     return "mountain_cleared"
+                else:
+                    self.state = 'living' # A cultivated barren tile becomes living
+            
             return amount
         return 0
     
@@ -82,13 +92,9 @@ class Tile:
             self.passive_timer += delta_time
             if self.passive_timer >= PASSIVE_INCOME_INTERVAL:
                 self.passive_timer -= PASSIVE_INCOME_INTERVAL
-                return PASSIVE_INCOME_AMOUNT, None
+                effect = {'x': self.rect.centerx, 'y': self.rect.y, 'text': f"+{PASSIVE_INCOME_AMOUNT}"}
+                return PASSIVE_INCOME_AMOUNT, effect
         
-        # Check if a mountain was just cleared
-        if self.current_toughness <= 0 and self.state == 'mountain':
-             self.state = 'living'
-             return 0, "mountain_cleared"
-
         return 0, None
 
     def draw(self, screen, camera_offset_x):
@@ -111,9 +117,10 @@ class Tile:
             if self.mountain_surface:
                 mountain_rect = self.mountain_surface.get_rect(bottomleft=on_screen_rect.bottomleft)
                 screen.blit(self.mountain_surface, mountain_rect)
-            text_surf = self.font.render(str(round(self.current_toughness)), True, WHITE)
-            text_rect = text_surf.get_rect(center=on_screen_rect.center)
-            screen.blit(text_surf, text_rect)
+            if self.is_being_mined:
+                text_surf = self.font.render(str(round(self.current_toughness)), True, WHITE)
+                text_rect = text_surf.get_rect(center=on_screen_rect.center)
+                screen.blit(text_surf, text_rect)
         else: # living
             screen.blit(self.living_surface, on_screen_rect)
             if self.is_center and self.landmark_surface:
