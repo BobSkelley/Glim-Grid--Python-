@@ -1,15 +1,17 @@
 import pygame
-from settings import GLIM_COST, WELLSPRING_COST, BEACON_COST, STOMPER_POST_COST
+from settings import (GLIM_COST, WELLSPRING_COST, BEACON_COST, STOMPER_POST_COST, 
+                      STRUCTURE_REFUND_PERCENTAGE)
 from glim import Glim
 
 class GameState:
     def __init__(self):
-        self.life_essence = 99990
+        self.life_essence = 54770
         self.glims = []
         self.structures = []
-        self.glim_cap = 109
+        self.glim_cap = 10457457
         
         self.build_mode_item = None
+        self.destroy_mode = False # New
 
         self.skill_tree_unlocked = False
         self.skill_points = 0
@@ -53,7 +55,6 @@ class GameState:
         if not skill or skill['unlocked']:
             return False
         
-        # Handle prerequisite for drills
         if skill_name == 'glimdraulic_drills' and not self.skills['glimversal_motion']['unlocked']:
             return False
 
@@ -97,6 +98,20 @@ class GameState:
             self.structures.append(new_structure)
             self.build_mode_item = None
             pygame.mouse.set_visible(True)
+
+    def remove_structure(self, structure_to_remove):
+        cost_map = {
+            "wellspring": WELLSPRING_COST,
+            "beacon": BEACON_COST,
+            "stompertrainingpost": STOMPER_POST_COST
+        }
+        cost = cost_map.get(structure_to_remove.name, 0)
+        refund = round(cost * STRUCTURE_REFUND_PERCENTAGE)
+        self.add_essence(refund)
+
+        structure_to_remove.tile.structure = None
+        self.structures.remove(structure_to_remove)
+        return refund
 
     def find_trainable_glim(self):
         for glim in self.glims:

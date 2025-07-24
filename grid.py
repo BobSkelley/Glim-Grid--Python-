@@ -1,28 +1,20 @@
 import math
-import pygame
 from tile import Tile
 from structure import Beacon
 from settings import (WORLD_SIZE_TILES, TILE_SIZE, BASE_TOUGHNESS, TOUGHNESS_MULTIPLIER, 
                       GROUND_Y_OFFSET_BLOCKS, ACTIVE_ZONE_RADIUS, CORE_TILE_INDEX, 
-                      CORE_TILE_TOUGHNESS, BEACON_SPEED_BOOST, MOUNTAIN_TOUGHNESS, BEACON_RANGE)
+                      CORE_TILE_TOUGHNESS, BEACON_SPEED_BOOST, MOUNTAIN_TOUGHNESS, BEACON_RANGE,
+                      BEACON_STACK_MODIFIER, MAX_BEACON_BUFF)
 
 class Grid:
     def __init__(self, screen_height):
-        # Diagnostic print to check if settings are loaded correctly
-        print(f"[DEBUG] Initializing Grid with WORLD_SIZE_TILES = {WORLD_SIZE_TILES}")
-        
         self.tiles = []
         self.ground_y = screen_height - (GROUND_Y_OFFSET_BLOCKS * TILE_SIZE)
         self.center_tile_pos = (0, 0)
         self.center_index = WORLD_SIZE_TILES // 2
         self._create_tiles()
-
-        if self.tiles:
-            self.tiles[self.center_index].state = 'living'
-            self.tiles[self.center_index].current_toughness = 0
-        else:
-            # This will print if the tile creation loop fails for any reason
-            print("[ERROR] Grid initialization failed: No tiles were created.")
+        self.tiles[self.center_index].state = 'living'
+        self.tiles[self.center_index].current_toughness = 0
 
     def _create_tiles(self):
         core_tile_abs_index = self.center_index + CORE_TILE_INDEX
@@ -71,13 +63,24 @@ class Grid:
         return None
 
     def get_buff_at_tile(self, glim, structures):
-        buff = 1.0
+        beacons_in_range = []
         for struct in structures:
             if isinstance(struct, Beacon):
                 dist = math.hypot(struct.tile.rect.centerx - glim.x, struct.tile.rect.centery - glim.y)
                 if dist <= BEACON_RANGE:
-                    buff *= BEACON_SPEED_BOOST
-        return buff
+                    beacons_in_range.append(struct)
+        
+        if not beacons_in_range:
+            return 1.0
+
+        # Calculate buff with diminishing returns
+        total_boost = 0
+        base_boost = BEACON_SPEED_BOOST - 1.0
+        for i in range(len(beacons_in_range)):
+            total_boost += base_boost * (BEACON_STACK_MODIFIER ** i)
+
+        final_buff = 1.0 + total_boost
+        return min(final_buff, MAX_BEACON_BUFF)
 
     def get_tile_at_world_pos(self, world_x, world_y):
         for tile in self.tiles:

@@ -1,5 +1,6 @@
 import pygame
-from settings import SKY_COLOR, PLAYER_CLICK_STRENGTH, BUILD_VALID_COLOR, BUILD_INVALID_COLOR, TILE_SIZE
+from settings import (SKY_COLOR, PLAYER_CLICK_STRENGTH, BUILD_VALID_COLOR, 
+                      BUILD_INVALID_COLOR, TILE_SIZE, DESTROY_VALID_COLOR)
 from grid import Grid
 from camera import Camera
 from game_state import GameState
@@ -9,15 +10,10 @@ from structure import Wellspring, Beacon, StomperTrainingPost
 def main():
     pygame.init()
     pygame.font.init()
-    
-    print("[DEBUG] Pygame initialized.")
-
     screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
     screen_width, screen_height = screen.get_size()
     pygame.display.set_caption("Glim Grid")
     clock = pygame.time.Clock()
-    
-    print(f"[DEBUG] Screen created with size: {screen_width}x{screen_height}")
 
     game_state = GameState()
     ui = UI(game_state, screen_width, screen_height)
@@ -33,13 +29,13 @@ def main():
         world_x, world_y = mouse_pos[0] + camera.offset_x, mouse_pos[1]
 
         for event in events:
-            if event.type == pygame.QUIT:
-                running = False
+            if event.type == pygame.QUIT: running = False
             
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    if game_state.build_mode_item:
+                    if game_state.build_mode_item or game_state.destroy_mode:
                         game_state.build_mode_item = None
+                        game_state.destroy_mode = False
                         pygame.mouse.set_visible(True)
                     elif ui.build_menu_open: ui.build_menu_open = False
                     elif ui.skill_tree_open: ui.skill_tree_open = False
@@ -51,31 +47,39 @@ def main():
                     if game_state.skill_tree_unlocked:
                         ui.skill_tree_open = not ui.skill_tree_open
                         ui.build_menu_open = False
+                if event.key == pygame.K_DELETE:
+                    game_state.destroy_mode = not game_state.destroy_mode
             
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1: # Left Click
+                    # Handle destroy mode first
+                    if game_state.destroy_mode:
+                        structure_to_destroy = grid.get_structure_at_world_pos(world_x, world_y, game_state.structures)
+                        if structure_to_destroy:
+                            refund = game_state.remove_structure(structure_to_destroy)
+                            ui.show_notification(f"Structure sold for {refund} essence.")
+                            game_state.destroy_mode = False
+                        continue # Skip other click actions
+
                     action = ui.handle_click(mouse_pos)
                     
-                    if action == "purchase_glim":
-                        game_state.purchase_glim(*grid.center_tile_pos)
+                    if action == "toggle_destroy_mode": pass # Handled by UI
+                    elif action == "purchase_glim": game_state.purchase_glim(*grid.center_tile_pos)
                     elif action == "build_wellspring":
                         if game_state.can_purchase("wellspring"):
                             game_state.build_mode_item = "wellspring"
                             build_preview_surface = Wellspring.get_preview_surface()
                             ui.build_menu_open = False
-                            pygame.mouse.set_visible(False)
                     elif action == "build_beacon":
                         if game_state.can_purchase("beacon"):
                             game_state.build_mode_item = "beacon"
                             build_preview_surface = Beacon.get_preview_surface()
                             ui.build_menu_open = False
-                            pygame.mouse.set_visible(False)
                     elif action == "build_stomper_post":
                         if game_state.can_purchase("stompertrainingpost"):
                             game_state.build_mode_item = "stomper_post"
                             build_preview_surface = StomperTrainingPost.get_preview_surface()
                             ui.build_menu_open = False
-                            pygame.mouse.set_visible(False)
                     elif action == "purchase_glimversal_motion":
                         if game_state.purchase_skill('glimversal_motion', grid.center_tile_pos):
                             ui.show_notification("Glimversal Motion unlocked!")
@@ -87,14 +91,9 @@ def main():
                         if game_state.build_mode_item:
                             tile_to_build_on = grid.get_tile_at_world_pos(world_x, world_y)
                             if tile_to_build_on and tile_to_build_on.is_buildable():
-                                structure_map = {
-                                    "wellspring": Wellspring,
-                                    "beacon": Beacon,
-                                    "stomper_post": StomperTrainingPost
-                                }
+                                structure_map = {"wellspring": Wellspring, "beacon": Beacon, "stomper_post": StomperTrainingPost}
                                 structure_class = structure_map.get(game_state.build_mode_item)
-                                if structure_class:
-                                    game_state.place_structure(structure_class, tile_to_build_on)
+                                if structure_class: game_state.place_structure(structure_class, tile_to_build_on)
                         else:
                             clicked_structure = grid.get_structure_at_world_pos(world_x, world_y, game_state.structures)
                             if clicked_structure and isinstance(clicked_structure, StomperTrainingPost):
@@ -111,25 +110,29 @@ def main():
                                 elif isinstance(result, (int, float)) and result > 0:
                                      game_state.add_essence(result)
 
-                elif event.button == 3:
-                    if game_state.build_mode_item:
+                elif event.button == 3: # Right click to cancel modes
+                    if game_state.build_mode_item or game_state.destroy_mode:
                         game_state.build_mode_item = None
-                        pygame.mouse.set_visible(True)
+                        game_state.destroy_mode = False
 
         camera.handle_input(events)
         camera.update_keys(delta_time)
         
         # Update Logic
         passive_essence, grid_effects = grid.update(delta_time)
-        if passive_essence > 0:
-            game_state.add_essence(passive_essence)
+        if passive_essence > 0: game_state.add_essence(passive_essence)
         for effect in grid_effects:
-            ui.add_floating_text(effect.get('x', 0), effect.get('y', 0), effect.get('text', ''))
+            if effect.get('type') == 'notification':
+                ui.show_notification(effect['text'])
+                if effect['text'] == 'Mountain Cleared!':
+                    game_state.skill_points += 1
+                    ui.show_notification("Skill Point Gained!")
+            else:
+                ui.add_floating_text(effect.get('x', 0), effect.get('y', 0), effect.get('text', ''))
 
         for struct in game_state.structures:
             essence, effect = struct.update(delta_time, game_state)
-            if essence > 0:
-                game_state.add_essence(essence)
+            if essence > 0: game_state.add_essence(essence)
             if effect and effect.get('type') == 'notification':
                 ui.show_notification(effect['text'])
             elif effect:
@@ -150,6 +153,9 @@ def main():
             if effect:
                 if effect.get('type') == 'notification':
                     ui.show_notification(effect['text'])
+                    if effect['text'] == 'Mountain Cleared!':
+                        game_state.skill_points += 1
+                        ui.show_notification("Skill Point Gained!")
                 else:
                     ui.add_floating_text(effect.get('x',0), effect.get('y',0), effect.get('text',''))
 
@@ -165,7 +171,16 @@ def main():
         for glim in game_state.glims:
             glim.draw(screen, camera.offset_x)
 
-        if game_state.build_mode_item:
+        # Draw build/destroy previews
+        if game_state.destroy_mode:
+            structure_under_mouse = grid.get_structure_at_world_pos(world_x, world_y, game_state.structures)
+            if structure_under_mouse:
+                overlay = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+                overlay.fill(DESTROY_VALID_COLOR)
+                on_screen_rect = structure_under_mouse.tile.rect.copy()
+                on_screen_rect.x -= camera.offset_x
+                screen.blit(overlay, on_screen_rect)
+        elif game_state.build_mode_item:
             tile_under_mouse = grid.get_tile_at_world_pos(world_x, world_y)
             if tile_under_mouse:
                 overlay = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
