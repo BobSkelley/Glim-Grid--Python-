@@ -93,8 +93,9 @@ class Grid:
             essence, effect = tile.update(delta_time)
             if essence > 0:
                 total_essence_gained += essence
-            if effect == "mountain_cleared":
-                 effects_to_create.append({'type': 'notification', 'text': "Mountain Cleared!"})
+            # FIX: This now correctly appends ANY effect returned by a tile
+            if effect:
+                effects_to_create.append(effect)
         return total_essence_gained, effects_to_create
 
     def draw(self, screen, camera_offset_x):
