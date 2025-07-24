@@ -1,11 +1,15 @@
 import pygame
-from settings import WELLSPRING_INCOME_AMOUNT, WELLSPRING_INCOME_INTERVAL, WELLSPRING_COLOR_PRIMARY, WELLSPRING_COLOR_SECONDARY, TILE_SIZE, BEACON_COLOR_PRIMARY, BEACON_COLOR_SECONDARY
+from settings import (WELLSPRING_INCOME_AMOUNT, WELLSPRING_INCOME_INTERVAL, 
+                      WELLSPRING_COLOR_PRIMARY, WELLSPRING_COLOR_SECONDARY, TILE_SIZE, 
+                      BEACON_COLOR_PRIMARY, BEACON_COLOR_SECONDARY,
+                      STOMPER_POST_COLOR_PRIMARY, STOMPER_POST_COLOR_SECONDARY)
 
 class Structure:
     def __init__(self, tile):
         self.tile = tile
         self.tile.set_structure(self)
         self.rect = tile.rect.copy()
+        self.name = self.__class__.__name__.lower()
     
     def update(self, delta_time):
         return 0, None
@@ -65,3 +69,23 @@ class Beacon(Structure):
         on_screen_rect = self.surface.get_rect(midbottom=self.tile.rect.midtop)
         on_screen_rect.x -= camera_offset_x
         screen.blit(self.surface, on_screen_rect)
+
+class StomperTrainingPost(Structure):
+    def __init__(self, tile):
+        super().__init__(tile)
+        self.surface = self._create_surface()
+
+    def _create_surface(self):
+        surface = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(surface, STOMPER_POST_COLOR_PRIMARY, (2, 10, 28, 22), border_radius=4)
+        pygame.draw.rect(surface, STOMPER_POST_COLOR_SECONDARY, (8, 4, 16, 6))
+        pygame.draw.rect(surface, (0,0,0), (12, 16, 8, 8)) # Anvil-like shape
+        return surface
+
+    @staticmethod
+    def get_preview_surface():
+        surface = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(surface, STOMPER_POST_COLOR_PRIMARY, (2, 10, 28, 22), border_radius=4)
+        pygame.draw.rect(surface, STOMPER_POST_COLOR_SECONDARY, (8, 4, 16, 6))
+        pygame.draw.rect(surface, (0,0,0), (12, 16, 8, 8))
+        return surface
