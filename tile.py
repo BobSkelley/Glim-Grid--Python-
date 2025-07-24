@@ -1,10 +1,22 @@
 import pygame
 import random
 import math
-from settings import TILE_SIZE, DIRT_BROWN, GRASS_GREEN, DARK_GRASS_GREEN, WHITE, GRID_LINE_COLOR, TILE_TEXT_COLOR, PASSIVE_INCOME_AMOUNT, PASSIVE_INCOME_INTERVAL, LANDMARK_COLOR_PRIMARY, LANDMARK_COLOR_SECONDARY, MOUNTAIN_COLOR_DARK, MOUNTAIN_COLOR_LIGHT, CORE_TILE_COLOR
+from settings import (TILE_SIZE, DIRT_BROWN, GRASS_GREEN, DARK_GRASS_GREEN, WHITE, 
+                      GRID_LINE_COLOR, TILE_TEXT_COLOR, PASSIVE_INCOME_AMOUNT, 
+                      PASSIVE_INCOME_INTERVAL, LANDMARK_COLOR_PRIMARY, LANDMARK_COLOR_SECONDARY, 
+                      MOUNTAIN_COLOR_DARK, MOUNTAIN_COLOR_LIGHT, CORE_TILE_COLOR,
+                      BASE_TOUGHNESS, TOUGHNESS_MULTIPLIER)
+
+def format_toughness(num):
+    if num < 1000:
+        return str(round(num))
+    elif num < 1_000_000:
+        return f"{num/1000:.1f}K"
+    else:
+        return f"{num/1_000_000:.1f}M"
 
 class Tile:
-    def __init__(self, x_pos, y_pos, toughness, state='barren', is_center=False, is_core=False):
+    def __init__(self, x_pos, y_pos, toughness, state='barren', is_center=False, is_core=False, distance_from_center=0):
         self.x_pos = x_pos
         self.y_pos = y_pos
         self.max_toughness = toughness
@@ -12,6 +24,7 @@ class Tile:
         self.state = state
         self.is_center = is_center
         self.is_core = is_core
+        self.distance_from_center = distance_from_center
         self.rect = pygame.Rect(self.x_pos, self.y_pos, TILE_SIZE, TILE_SIZE)
         self.structure = None
         self.is_being_mined = False
@@ -69,17 +82,21 @@ class Tile:
             was_mountain = self.state == 'mountain'
             self.current_toughness -= amount
             if self.current_toughness <= 0:
-                self.current_toughness = 0
-                
                 if self.is_core:
                     self.state = 'living'
+                    self.current_toughness = 0
                     return "core_cultivated"
                 
                 if was_mountain:
-                    self.state = 'barren' # A destroyed mountain becomes a barren tile
+                    self.state = 'barren'
+                    # Recalculate toughness based on distance
+                    new_toughness = round(BASE_TOUGHNESS * (TOUGHNESS_MULTIPLIER ** self.distance_from_center))
+                    self.max_toughness = new_toughness
+                    self.current_toughness = new_toughness
                     return "mountain_cleared"
                 else:
-                    self.state = 'living' # A cultivated barren tile becomes living
+                    self.state = 'living'
+                    self.current_toughness = 0
             
             return amount
         return 0
@@ -110,7 +127,7 @@ class Tile:
             pygame.draw.rect(screen, GRID_LINE_COLOR, on_screen_rect, 1)
             
             if self.current_toughness > 0:
-                text_surf = self.font.render(str(round(self.current_toughness)), True, TILE_TEXT_COLOR)
+                text_surf = self.font.render(format_toughness(self.current_toughness), True, TILE_TEXT_COLOR)
                 text_rect = text_surf.get_rect(center=on_screen_rect.center)
                 screen.blit(text_surf, text_rect)
         elif self.state == 'mountain':
@@ -118,7 +135,7 @@ class Tile:
                 mountain_rect = self.mountain_surface.get_rect(bottomleft=on_screen_rect.bottomleft)
                 screen.blit(self.mountain_surface, mountain_rect)
             if self.is_being_mined:
-                text_surf = self.font.render(str(round(self.current_toughness)), True, WHITE)
+                text_surf = self.font.render(format_toughness(self.current_toughness), True, WHITE)
                 text_rect = text_surf.get_rect(center=on_screen_rect.center)
                 screen.blit(text_surf, text_rect)
         else: # living

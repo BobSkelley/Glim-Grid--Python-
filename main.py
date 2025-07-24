@@ -1,5 +1,5 @@
 import pygame
-from settings import SKY_COLOR, PLAYER_CLICK_STRENGTH, BUILD_VALID_COLOR, BUILD_INVALID_COLOR, TILE_SIZE, STOMPER_CONVERSION_COST
+from settings import SKY_COLOR, PLAYER_CLICK_STRENGTH, BUILD_VALID_COLOR, BUILD_INVALID_COLOR, TILE_SIZE
 from grid import Grid
 from camera import Camera
 from game_state import GameState
@@ -9,10 +9,15 @@ from structure import Wellspring, Beacon, StomperTrainingPost
 def main():
     pygame.init()
     pygame.font.init()
+    
+    print("[DEBUG] Pygame initialized.")
+
     screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
     screen_width, screen_height = screen.get_size()
     pygame.display.set_caption("Glim Grid")
     clock = pygame.time.Clock()
+    
+    print(f"[DEBUG] Screen created with size: {screen_width}x{screen_height}")
 
     game_state = GameState()
     ui = UI(game_state, screen_width, screen_height)
@@ -71,6 +76,9 @@ def main():
                             build_preview_surface = StomperTrainingPost.get_preview_surface()
                             ui.build_menu_open = False
                             pygame.mouse.set_visible(False)
+                    elif action == "purchase_glimversal_motion":
+                        if game_state.purchase_skill('glimversal_motion', grid.center_tile_pos):
+                            ui.show_notification("Glimversal Motion unlocked!")
                     elif action == "purchase_glimdraulic_drills":
                         if game_state.purchase_skill('glimdraulic_drills', grid.center_tile_pos):
                             ui.show_notification("Glimdraulic Drills unlocked!")
@@ -90,20 +98,8 @@ def main():
                         else:
                             clicked_structure = grid.get_structure_at_world_pos(world_x, world_y, game_state.structures)
                             if clicked_structure and isinstance(clicked_structure, StomperTrainingPost):
-                                if clicked_structure.is_training:
-                                    ui.show_notification("Post is already training.")
-                                elif clicked_structure.trained_count >= clicked_structure.capacity:
-                                    ui.show_notification("Post is at capacity.")
-                                elif game_state.life_essence < STOMPER_CONVERSION_COST:
-                                    ui.show_notification("Not enough essence to train.")
-                                else:
-                                    glim_to_train = game_state.find_trainable_glim()
-                                    if glim_to_train:
-                                        game_state.life_essence -= STOMPER_CONVERSION_COST
-                                        clicked_structure.start_training(glim_to_train)
-                                        ui.show_notification("Stomper training started!")
-                                    else:
-                                        ui.show_notification("No standard Glims available to train.")
+                                status = clicked_structure.toggle_pause()
+                                ui.show_notification(f"Training {status}")
                             else:
                                 result = grid.handle_click(world_x, world_y, PLAYER_CLICK_STRENGTH)
                                 if result == "core_cultivated":
@@ -128,13 +124,10 @@ def main():
         if passive_essence > 0:
             game_state.add_essence(passive_essence)
         for effect in grid_effects:
-            if effect.get('type') == 'notification':
-                ui.show_notification(effect['text'])
-            else:
-                ui.add_floating_text(effect.get('x', 0), effect.get('y', 0), effect.get('text', ''))
+            ui.add_floating_text(effect.get('x', 0), effect.get('y', 0), effect.get('text', ''))
 
         for struct in game_state.structures:
-            essence, effect = struct.update(delta_time)
+            essence, effect = struct.update(delta_time, game_state)
             if essence > 0:
                 game_state.add_essence(essence)
             if effect and effect.get('type') == 'notification':
@@ -144,7 +137,7 @@ def main():
         
         for glim in game_state.glims:
             target = grid.find_next_target(glim, game_state.glim_targeting)
-            buff = grid.get_buff_at_tile(target, game_state.structures)
+            buff = grid.get_buff_at_tile(glim, game_state.structures)
             essence, effect = glim.update(delta_time, target, buff)
             if essence == "core_cultivated":
                 if not game_state.skill_tree_unlocked:

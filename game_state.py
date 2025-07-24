@@ -1,20 +1,25 @@
 import pygame
-from settings import GLIM_COST, WELLSPRING_COST, BEACON_COST, STOMPER_POST_COST, STOMPER_CONVERSION_COST
+from settings import GLIM_COST, WELLSPRING_COST, BEACON_COST, STOMPER_POST_COST
 from glim import Glim
 
 class GameState:
     def __init__(self):
-        self.life_essence = 0
+        self.life_essence = 99990
         self.glims = []
         self.structures = []
-        self.glim_cap = 10
+        self.glim_cap = 109
         
-        self.glim_targeting = 'right_only'
         self.build_mode_item = None
 
         self.skill_tree_unlocked = False
         self.skill_points = 0
         self.skills = {
+            'glimversal_motion': {
+                'unlocked': False,
+                'cost_essence': 250,
+                'cost_sp': 1,
+                'req_glims': 2
+            },
             'glimdraulic_drills': {
                 'unlocked': False,
                 'cost_essence': 500,
@@ -22,6 +27,10 @@ class GameState:
                 'req_glims': 5
             }
         }
+
+    @property
+    def glim_targeting(self):
+        return 'closest' if self.skills['glimversal_motion']['unlocked'] else 'right_only'
 
     def add_essence(self, amount):
         self.life_essence += amount
@@ -44,6 +53,10 @@ class GameState:
         if not skill or skill['unlocked']:
             return False
         
+        # Handle prerequisite for drills
+        if skill_name == 'glimdraulic_drills' and not self.skills['glimversal_motion']['unlocked']:
+            return False
+
         has_sp = self.skill_points >= skill['cost_sp']
         has_essence = self.life_essence >= skill['cost_essence']
         
@@ -86,7 +99,6 @@ class GameState:
             pygame.mouse.set_visible(True)
 
     def find_trainable_glim(self):
-        # Find the first available standard glim that isn't already being trained
         for glim in self.glims:
             if glim.glim_type == 'standard':
                 is_being_trained = False

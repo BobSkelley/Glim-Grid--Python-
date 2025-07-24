@@ -2,7 +2,7 @@ import pygame
 from settings import (UI_TEXT_COLOR, GLIM_COST, WELLSPRING_COST, BEACON_COST, 
                       STOMPER_POST_COST, STOMPER_CONVERSION_COST,
                       UI_BUTTON_COLOR, UI_BUTTON_HOVER_COLOR, HAMMER_ICON_PATH, 
-                      UI_PANEL_COLOR, UI_BG_OVERLAY_COLOR, SKILL_ICON_PATH)
+                      UI_PANEL_COLOR, UI_BG_OVERLAY_COLOR, SKILL_ICON_PATH, MOTION_SKILL_ICON_PATH)
 
 class FloatingText:
     def __init__(self, x, y, text, font, duration=1.5, speed=20, color=UI_TEXT_COLOR):
@@ -40,30 +40,24 @@ class UI:
         self.font_tiny = pygame.font.SysFont("Arial", 12, bold=True)
         self.floating_texts = []
         
-        # Button Rects
         self.glim_button_rect = pygame.Rect(0, 0, 180, 50)
         self.build_menu_button_rect = pygame.Rect(0, 0, 60, 60)
         self.skill_tree_button_rect = pygame.Rect(0, 0, 60, 60)
         
-        # Panel Rects
         self.build_panel_rect = pygame.Rect(0, 0, 450, 250)
         self.build_panel_rect.center = (screen_width / 2, screen_height / 2)
         self.skill_panel_rect = pygame.Rect(0, 0, 450, 350)
         self.skill_panel_rect.center = (screen_width / 2, screen_height / 2)
 
-        # Build Menu Buttons
         self.well_button_rect = pygame.Rect(0, 0, 180, 50)
         self.beacon_button_rect = pygame.Rect(0, 0, 180, 50)
         self.stomper_post_button_rect = pygame.Rect(0, 0, 180, 50)
         
-        # Skill Tree Buttons
-        self.drills_skill_rect = pygame.Rect(0, 0, 100, 100)
+        self.motion_skill_rect = pygame.Rect(0, 0, 80, 80)
+        self.drills_skill_rect = pygame.Rect(0, 0, 80, 80)
 
         self.build_menu_open = False
         self.skill_tree_open = False
-        
-        self.notification_text = ""
-        self.notification_timer = 0
         
         try:
             self.hammer_icon = pygame.image.load(HAMMER_ICON_PATH).convert_alpha()
@@ -73,13 +67,17 @@ class UI:
             self.skill_icon = pygame.image.load(SKILL_ICON_PATH).convert_alpha()
             self.skill_icon = pygame.transform.scale(self.skill_icon, (40, 40))
         except pygame.error: self.skill_icon = None
+        # FIX: Added try-except block to prevent crash if file is missing
+        try:
+            self.motion_skill_icon = pygame.image.load(MOTION_SKILL_ICON_PATH).convert_alpha()
+            self.motion_skill_icon = pygame.transform.scale(self.motion_skill_icon, (40, 40))
+        except pygame.error: self.motion_skill_icon = None
 
     def add_floating_text(self, x, y, text, duration=1.5):
         self.floating_texts.append(FloatingText(x, y, text, self.font_large, duration=duration))
 
     def update(self, delta_time):
         self.floating_texts = [ft for ft in self.floating_texts if ft.update(delta_time)]
-        if self.notification_timer > 0: self.notification_timer -= delta_time
 
     def show_notification(self, text, duration=4):
         self.add_floating_text(self.screen_width / 2, self.screen_height - 100, text, duration=duration)
@@ -94,9 +92,10 @@ class UI:
             return "ui_click"
 
         if self.skill_tree_open:
-            if not self.game_state.skills['glimdraulic_drills']['unlocked'] and self.drills_skill_rect.collidepoint(mouse_pos):
-                if self.game_state.can_purchase_skill('glimdraulic_drills'):
-                    return "purchase_glimdraulic_drills"
+            if self.motion_skill_rect.collidepoint(mouse_pos):
+                return "purchase_glimversal_motion"
+            if self.drills_skill_rect.collidepoint(mouse_pos):
+                return "purchase_glimdraulic_drills"
             if not self.skill_panel_rect.collidepoint(mouse_pos): self.skill_tree_open = False
             return "ui_click"
 
@@ -114,7 +113,6 @@ class UI:
 
     def draw(self, screen, camera_offset_x):
         mouse_pos = pygame.mouse.get_pos()
-        # Main UI elements
         essence_text = f"Life Essence: {self.game_state.life_essence}"
         text_surface = self.font_large.render(essence_text, True, UI_TEXT_COLOR)
         screen.blit(text_surface, text_surface.get_rect(topright=(self.screen_width - 15, 10)))
@@ -128,7 +126,6 @@ class UI:
             sp_surf = self.font_large.render(sp_text, True, UI_TEXT_COLOR)
             screen.blit(sp_surf, sp_surf.get_rect(topright=(self.screen_width - 15, 70)))
 
-        # Buttons
         self.glim_button_rect.bottomright = (self.screen_width - 15, self.screen_height - 15)
         self._draw_button(screen, self.glim_button_rect, "Purchase Glim", f"(Cost: {GLIM_COST})", "glim")
 
@@ -139,7 +136,6 @@ class UI:
             self.skill_tree_button_rect.bottomleft = (self.build_menu_button_rect.right + 10, self.screen_height - 15)
             self._draw_skill_tree_button(screen)
 
-        # Panels
         if self.build_menu_open: self._draw_build_panel(screen, mouse_pos)
         if self.skill_tree_open: self._draw_skill_tree_panel(screen, mouse_pos)
 
@@ -153,26 +149,22 @@ class UI:
         title_surf = self.font_large.render("Build Menu", True, UI_TEXT_COLOR)
         screen.blit(title_surf, title_surf.get_rect(center=(self.build_panel_rect.centerx, self.build_panel_rect.top + 30)))
 
-        # Button positions
         self.well_button_rect.topleft = (self.build_panel_rect.left + 25, self.build_panel_rect.top + 70)
         self.beacon_button_rect.topleft = (self.build_panel_rect.left + 225, self.build_panel_rect.top + 70)
         self.stomper_post_button_rect.topleft = (self.build_panel_rect.left + 25, self.build_panel_rect.top + 140)
 
-        # Wellspring Button
         self._draw_button(screen, self.well_button_rect, "Build Wellspring", f"(Cost: {WELLSPRING_COST})", "wellspring")
         if self.well_button_rect.collidepoint(mouse_pos):
             self._draw_info_tooltip(screen, mouse_pos, ["Creates Life Essence over time."])
 
-        # Beacon Button
         self._draw_button(screen, self.beacon_button_rect, "Build Beacon", f"(Cost: {BEACON_COST})", "beacon")
         if self.beacon_button_rect.collidepoint(mouse_pos):
             self._draw_info_tooltip(screen, mouse_pos, ["Boosts speed of nearby Glims."])
         
-        # Stomper Post Button
         if self.game_state.skills['glimdraulic_drills']['unlocked']:
             self._draw_button(screen, self.stomper_post_button_rect, "Stomper Post", f"(Cost: {STOMPER_POST_COST})", "stompertrainingpost")
             if self.stomper_post_button_rect.collidepoint(mouse_pos):
-                self._draw_info_tooltip(screen, mouse_pos, ["Click to train a Glim into a Stomper.", f"(Cost: {STOMPER_CONVERSION_COST} LE)"])
+                self._draw_info_tooltip(screen, mouse_pos, ["Automatically trains Glims into Stompers.", "Click the built post to pause/resume."])
                 
     def _draw_skill_tree_panel(self, screen, mouse_pos):
         self._draw_panel_background(screen)
@@ -182,25 +174,34 @@ class UI:
         title_surf = self.font_large.render("Skill Tree", True, UI_TEXT_COLOR)
         screen.blit(title_surf, title_surf.get_rect(center=(self.skill_panel_rect.centerx, self.skill_panel_rect.top + 30)))
         
-        # Glimdraulic Drills Skill
-        skill = self.game_state.skills['glimdraulic_drills']
-        self.drills_skill_rect.center = (self.skill_panel_rect.centerx, self.skill_panel_rect.centery - 50)
+        self.motion_skill_rect.center = (self.skill_panel_rect.centerx, self.skill_panel_rect.top + 120)
+        self.drills_skill_rect.center = (self.skill_panel_rect.centerx, self.motion_skill_rect.bottom + 60)
+        
+        motion_unlocked = self.game_state.skills['glimversal_motion']['unlocked']
+        if motion_unlocked:
+            pygame.draw.line(screen, UI_BUTTON_HOVER_COLOR, self.motion_skill_rect.midbottom, self.drills_skill_rect.midtop, 3)
+
+        self._draw_skill_button(screen, mouse_pos, 'glimversal_motion', self.motion_skill_rect, self.motion_skill_icon,
+                                ["Glimversal Motion", "Allows Glims to cultivate tiles", "to the left and right."])
+
+        if motion_unlocked:
+             self._draw_skill_button(screen, mouse_pos, 'glimdraulic_drills', self.drills_skill_rect, self.skill_icon,
+                                ["Glimdraulic Drills", "Unlocks Stomper Glims & Training Post.", "Grants 5 free Stomper Glims."])
+
+    def _draw_skill_button(self, screen, mouse_pos, skill_name, rect, icon, tooltip_lines):
+        skill = self.game_state.skills[skill_name]
         is_unlocked = skill['unlocked']
-        can_buy = self.game_state.can_purchase_skill('glimdraulic_drills')
+        can_buy = self.game_state.can_purchase_skill(skill_name)
         
         color = (50, 150, 50) if is_unlocked else (UI_BUTTON_HOVER_COLOR if can_buy else UI_BUTTON_COLOR)
-        pygame.draw.rect(screen, color, self.drills_skill_rect, border_radius=10)
+        pygame.draw.rect(screen, color, rect, border_radius=10)
         
-        if self.skill_icon:
-            icon_rect = self.skill_icon.get_rect(center=self.drills_skill_rect.center)
-            screen.blit(self.skill_icon, icon_rect)
+        if icon:
+            icon_rect = icon.get_rect(center=rect.center)
+            screen.blit(icon, icon_rect)
         
-        if self.drills_skill_rect.collidepoint(mouse_pos):
-            lines = [
-                "Glimdraulic Drills",
-                "Unlocks Stomper Glims & Training Post.",
-                "Grants 5 free Stomper Glims."
-            ]
+        if rect.collidepoint(mouse_pos):
+            lines = list(tooltip_lines)
             if not is_unlocked:
                 req_glims_str = f"Requires: {skill['req_glims']} Standard Glims"
                 lines.extend([
@@ -208,7 +209,7 @@ class UI:
                     req_glims_str
                 ])
             self._draw_info_tooltip(screen, mouse_pos, lines)
-        
+
     def _draw_info_tooltip(self, screen, mouse_pos, lines):
         if not lines: return
         
@@ -218,7 +219,6 @@ class UI:
         
         tooltip_rect = pygame.Rect(0, 0, max_width + 20, total_height + 20)
         
-        # Adjust position to stay on screen
         if mouse_pos[0] + tooltip_rect.width > self.screen_width:
             tooltip_rect.topright = (mouse_pos[0] - 15, mouse_pos[1] + 15)
         else:
@@ -242,9 +242,6 @@ class UI:
         hover = self.skill_tree_button_rect.collidepoint(mouse_pos)
         color = UI_BUTTON_HOVER_COLOR if hover else UI_BUTTON_COLOR
         pygame.draw.rect(screen, color, self.skill_tree_button_rect, border_radius=8)
-        
-        if self.skill_icon:
-            screen.blit(self.skill_icon, self.skill_icon.get_rect(center=self.skill_tree_button_rect.center))
         
         key_text = self.font_tiny.render("2", True, UI_TEXT_COLOR)
         screen.blit(key_text, (self.skill_tree_button_rect.left + 5, self.skill_tree_button_rect.bottom - 15))

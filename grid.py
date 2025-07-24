@@ -1,16 +1,28 @@
+import math
+import pygame
 from tile import Tile
 from structure import Beacon
-from settings import WORLD_SIZE_TILES, TILE_SIZE, BASE_TOUGHNESS, TOUGHNESS_MULTIPLIER, GROUND_Y_OFFSET_BLOCKS, ACTIVE_ZONE_RADIUS, CORE_TILE_INDEX, CORE_TILE_TOUGHNESS, BEACON_SPEED_BOOST, MOUNTAIN_TOUGHNESS
+from settings import (WORLD_SIZE_TILES, TILE_SIZE, BASE_TOUGHNESS, TOUGHNESS_MULTIPLIER, 
+                      GROUND_Y_OFFSET_BLOCKS, ACTIVE_ZONE_RADIUS, CORE_TILE_INDEX, 
+                      CORE_TILE_TOUGHNESS, BEACON_SPEED_BOOST, MOUNTAIN_TOUGHNESS, BEACON_RANGE)
 
 class Grid:
     def __init__(self, screen_height):
+        # Diagnostic print to check if settings are loaded correctly
+        print(f"[DEBUG] Initializing Grid with WORLD_SIZE_TILES = {WORLD_SIZE_TILES}")
+        
         self.tiles = []
         self.ground_y = screen_height - (GROUND_Y_OFFSET_BLOCKS * TILE_SIZE)
         self.center_tile_pos = (0, 0)
         self.center_index = WORLD_SIZE_TILES // 2
         self._create_tiles()
-        self.tiles[self.center_index].state = 'living'
-        self.tiles[self.center_index].current_toughness = 0
+
+        if self.tiles:
+            self.tiles[self.center_index].state = 'living'
+            self.tiles[self.center_index].current_toughness = 0
+        else:
+            # This will print if the tile creation loop fails for any reason
+            print("[ERROR] Grid initialization failed: No tiles were created.")
 
     def _create_tiles(self):
         core_tile_abs_index = self.center_index + CORE_TILE_INDEX
@@ -28,7 +40,7 @@ class Grid:
                 state = 'mountain'
                 toughness = MOUNTAIN_TOUGHNESS
 
-            self.tiles.append(Tile(x_pos, self.ground_y, toughness, state, is_center, is_core))
+            self.tiles.append(Tile(x_pos, self.ground_y, toughness, state, is_center, is_core, distance_from_center))
             if is_center:
                 self.center_tile_pos = (self.tiles[i].rect.centerx, self.tiles[i].rect.top)
 
@@ -58,13 +70,12 @@ class Grid:
                     if left_tile.state == 'barren': return left_tile
         return None
 
-    def get_buff_at_tile(self, target_tile, structures):
+    def get_buff_at_tile(self, glim, structures):
         buff = 1.0
-        if not target_tile: return buff
         for struct in structures:
             if isinstance(struct, Beacon):
-                dist = abs(struct.tile.rect.centerx - target_tile.rect.centerx)
-                if dist <= TILE_SIZE * 1.5:
+                dist = math.hypot(struct.tile.rect.centerx - glim.x, struct.tile.rect.centery - glim.y)
+                if dist <= BEACON_RANGE:
                     buff *= BEACON_SPEED_BOOST
         return buff
 
@@ -93,7 +104,6 @@ class Grid:
             essence, effect = tile.update(delta_time)
             if essence > 0:
                 total_essence_gained += essence
-            # FIX: This now correctly appends ANY effect returned by a tile
             if effect:
                 effects_to_create.append(effect)
         return total_essence_gained, effects_to_create
